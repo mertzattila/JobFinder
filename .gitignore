@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Local env / secrets — never commit real secrets
+.env
+
+# Playwright browser downloads
+.cache/ms-playwright/
+
+# NOTE: seen_jobs.json is intentionally NOT ignored — it is committed back by
+# the GitHub Actions workflow to persist "already notified" state across runs.

@@ -1,0 +1,141 @@
+# =============================================================================
+# JobFinder configuration
+# -----------------------------------------------------------------------------
+# Edit this file to tune the search. No code changes needed for normal use.
+#
+# IMPORTANT about `targets`: the CSS selectors below are STARTING POINTS.
+# Career-page markup changes often and differs per vendor. Before relying on a
+# target, open its URL, inspect the HTML, and confirm:
+#   - job_card : selector matching ONE job listing (repeats on the page)
+#   - title    : selector for the title text, relative to job_card (optional)
+#   - link     : selector for the <a> with the job URL, relative to job_card
+#   - location : selector for the location text (optional)
+# Set `render: true` for pages that build their job list with JavaScript
+# (most modern ATS portals: Workday, SuccessFactors, SmartRecruiters, etc.).
+# Then enable Playwright in CI (see .github/workflows/job_scraper.yml).
+# Flip `enabled: false` to skip a target without deleting it.
+# =============================================================================
+
+# --- Search parameters -------------------------------------------------------
+keywords:
+  - embedded
+  - beágyazott
+  - C
+  - C++
+  - Python
+  - microcontroller
+  - mikrokontroller
+  - gyakornok
+  - intern
+  - student
+  - hallgató
+
+score_threshold: 7          # notify only when LLM match score >= this (1-10)
+
+# --- Politeness / networking -------------------------------------------------
+request_timeout: 20
+request_delay_seconds: 1.5
+
+# --- LLM ---------------------------------------------------------------------
+llm:
+  provider: gemini          # "gemini" or "openai"
+  model: gemini-1.5-flash   # openai example: gpt-4o-mini
+  max_description_chars: 6000
+
+# --- Notifications -----------------------------------------------------------
+notifier:
+  channel: discord          # "discord" or "telegram"
+
+# --- Scrape targets ----------------------------------------------------------
+# Hardware / embedded companies in Budapest + local student job boards.
+targets:
+  - name: bosch-hu
+    company: Bosch
+    url: https://www.bosch.hu/karrier/allasok/
+    enabled: true
+    render: true
+    job_card: "a.job-listing-item, li.job-list__item a"
+    title: ".job-listing-item__title, .job-list__title"
+    link: null
+    location: ".job-listing-item__location, .job-list__location"
+
+  - name: continental
+    company: Continental
+    url: https://www.continental.com/en/career/job-search/
+    enabled: true
+    render: true
+    job_card: "div.job-item, a[data-job-id]"
+    title: ".job-item__title, h3"
+    link: "a"
+    location: ".job-item__location"
+
+  - name: ericsson
+    company: Ericsson
+    url: https://jobs.ericsson.com/search/?q=&locationsearch=Budapest
+    enabled: true
+    render: true
+    job_card: "tr.data-row, a.jobTitle-link"
+    title: "a.jobTitle-link, .jobTitle"
+    link: "a.jobTitle-link"
+    location: ".jobLocation"
+
+  - name: knorr-bremse
+    company: Knorr-Bremse
+    url: https://www.knorr-bremse.com/en/career/jobs/
+    enabled: true
+    render: true
+    job_card: "li.job, a.job-link"
+    title: ".job-title, h3"
+    link: "a"
+    location: ".job-location"
+
+  - name: nxp
+    company: NXP
+    url: https://nxp.wd3.myworkdayjobs.com/careers
+    enabled: false            # Workday needs tuned selectors; enable after verifying
+    render: true
+    job_card: "li.css-1q2dra3, a[data-automation-id='jobTitle']"
+    title: "a[data-automation-id='jobTitle']"
+    link: "a[data-automation-id='jobTitle']"
+    location: "dd[data-automation-id='locations']"
+
+  - name: silicon-labs
+    company: Silicon Labs
+    url: https://careers.silabs.com/jobs
+    enabled: false
+    render: true
+    job_card: "a.job-tile, li.job"
+    title: ".job-title, h3"
+    link: "a"
+    location: ".job-location"
+
+  - name: thyssenkrupp
+    company: thyssenkrupp
+    url: https://jobs.thyssenkrupp.com/en/search/?q=&location=Budapest
+    enabled: true
+    render: true
+    job_card: "a.jobTitle-link, tr.data-row"
+    title: "a.jobTitle-link, .jobTitle"
+    link: "a.jobTitle-link"
+    location: ".jobLocation"
+
+  # --- Local engineering student job boards ---
+  - name: schonherz
+    company: Schönherz Iskolaszövetkezet
+    url: https://schonherz.hu/allasok/
+    enabled: true
+    render: false
+    job_card: "article.job, .job-list-item, a.job-card"
+    title: ".job-title, h2, h3"
+    link: "a"
+    location: ".job-location, .location"
+
+  - name: dreamjobs
+    company: Dreamjo.bs
+    url: https://dreamjo.bs/hu/jobs?q=embedded
+    enabled: true
+    render: true
+    job_card: "a.job-card, article.job"
+    title: ".job-title, h2, h3"
+    link: "a"
+    location: ".job-location, .location"

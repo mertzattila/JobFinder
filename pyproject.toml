@@ -1,0 +1,20 @@
+[project]
+name = "jobfinder"
+version = "1.0.0"
+description = "Automated job-search and CV-matching pipeline for the Hungarian embedded market"
+requires-python = ">=3.10"
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+# E/F = pyflakes+pycodestyle, I = isort, UP = pyupgrade, B = bugbear,
+# SIM = simplify, BLE = blind-except (so our deliberate `# noqa: BLE001` are meaningful).
+select = ["E", "F", "I", "UP", "B", "SIM", "BLE"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S101"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
