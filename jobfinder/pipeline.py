@@ -16,6 +16,7 @@ from jobfinder.scrapers import (
     GenericScraper,
     GreenhouseScraper,
     PhenomScraper,
+    RecruiterBoxScraper,
 )
 from jobfinder.state import SeenStore
 
@@ -25,11 +26,14 @@ log = logging.getLogger(__name__)
 def build_scraper(target: TargetConfig, fetcher: Fetcher) -> BaseScraper:
     """Factory for scrapers. Picks the scraper by target.scraper: "generic"
     (default CSS scraper), "phenom" (Phenom People JSON API, e.g. Infineon),
-    or "greenhouse" (Greenhouse boards JSON API, e.g. Formlabs)."""
+    "greenhouse" (Greenhouse boards JSON API, e.g. Formlabs), or "recruiterbox"
+    (RecruiterBox/Trakstar Hire JSON API, e.g. Commsignia)."""
     if target.scraper == "phenom":
         return PhenomScraper(target, fetcher)
     if target.scraper == "greenhouse":
         return GreenhouseScraper(target, fetcher)
+    if target.scraper == "recruiterbox":
+        return RecruiterBoxScraper(target, fetcher)
     return GenericScraper(target, fetcher)
 
 

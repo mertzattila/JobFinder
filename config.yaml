@@ -154,6 +154,21 @@ targets:
     render: false
     job_card: ""        # unused by the greenhouse scraper
 
+  - name: commsignia
+    company: Commsignia
+    # Hungarian V2X / automotive-embedded company (R&D in Budapest, BME ties) that
+    # regularly hires embedded interns. Uses RecruiterBox/Trakstar Hire, which has
+    # a clean public JSON API — scraped via the "recruiterbox" scraper, no browser.
+    # Verified 2026-10-14: API works; few openings right now, but this auto-catches
+    # embedded/intern roles when they post them.
+    scraper: recruiterbox
+    url: https://commsignia.com/careers
+    api_url: "https://jsapi.recruiterbox.com/v1/openings?client_name=commsignia"
+    location_filter: Hungary
+    enabled: true
+    render: false
+    job_card: ""        # unused by the recruiterbox scraper
+
   - name: nxp
     company: NXP
     # Checked 2026-10-13 via NXP's Workday API: Hungary is NOT among the 26
