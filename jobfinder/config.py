@@ -25,8 +25,17 @@ class TargetConfig(BaseModel):
     enabled: bool = True
     render: bool = False  # True => use Playwright (JS-rendered page)
 
-    # CSS selectors for the generic scraper.
-    job_card: str = Field(..., description="Selector matching each job listing element")
+    # Which scraper to use. "generic" = config-driven CSS scraper (default);
+    # "phenom" = JSON API scraper for Phenom People career sites (jobs.<co>.com).
+    scraper: str = "generic"
+
+    # Extra params for API-based scrapers (e.g. phenom): the search endpoint and
+    # a location filter. Ignored by the generic scraper.
+    api_url: str | None = None
+    location_filter: str | None = None
+
+    # CSS selectors for the generic scraper. Optional for API-based scrapers.
+    job_card: str = Field(default="", description="Selector matching each job listing element")
     title: str | None = None  # selector relative to job_card; None => use card text
     link: str | None = None  # selector for the <a>; None => card is/contains the <a>
     location: str | None = None
@@ -48,6 +57,8 @@ class Settings(BaseModel):
     score_threshold: int = 7
     request_timeout: int = 20
     request_delay_seconds: float = 1.0
+    # Pause between LLM calls to stay under free-tier per-minute rate limits.
+    llm_request_delay_seconds: float = 6.0
     user_agent: str = (
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
         "(KHTML, like Gecko) Chrome/124.0 Safari/537.36"

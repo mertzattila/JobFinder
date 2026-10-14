@@ -15,12 +15,24 @@ import json
 import logging
 
 import requests
-from tenacity import retry, stop_after_attempt, wait_exponential
+from tenacity import retry, retry_if_not_exception_type, stop_after_attempt, wait_exponential
 
 from jobfinder.config import LLMConfig, Secrets
 from jobfinder.models import JobPosting, MatchResult
 
 log = logging.getLogger(__name__)
+
+
+class _NonRetryableError(RuntimeError):
+    """Raised for permanent API errors (bad key/model/request) that retrying
+    would not fix, so the pipeline skips the job immediately instead of
+    burning the full backoff schedule."""
+
+
+class QuotaExceededError(RuntimeError):
+    """Raised when the LLM API returns 429 (rate limit / quota exhausted) even
+    after retries. Signals the pipeline to STOP the whole run early rather than
+    hammer the API for every remaining job — the quota won't recover mid-run."""
 
 _SYSTEM_INSTRUCTION = (
     "You are a technical recruiter evaluating how well a job posting matches a "
@@ -76,7 +88,11 @@ class Matcher:
         data = json.loads(raw)
         return MatchResult(**data)
 
-    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=20))
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=2, min=4, max=30),
+        retry=retry_if_not_exception_type((_NonRetryableError, QuotaExceededError)),
+    )
     def _call_gemini(self, prompt: str) -> str:
         if not self.secrets.gemini_api_key:
             raise RuntimeError("GEMINI_API_KEY is not set")
@@ -99,11 +115,23 @@ class Matcher:
             json=payload,
             timeout=60,
         )
+        # 429 = rate limit / quota exhausted. Fail fast with a dedicated error so
+        # the pipeline can stop the whole run instead of retrying every job — the
+        # free-tier quota will not recover within a single run.
+        if resp.status_code == 429:
+            raise QuotaExceededError(resp.text[:200])
+        # Other 4xx (bad key/model/request) won't fix itself either; don't retry.
+        if 400 <= resp.status_code < 500:
+            raise _NonRetryableError(f"{resp.status_code}: {resp.text[:200]}")
         resp.raise_for_status()
         body = resp.json()
         return body["candidates"][0]["content"]["parts"][0]["text"]
 
-    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=20))
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=2, min=4, max=30),
+        retry=retry_if_not_exception_type((_NonRetryableError, QuotaExceededError)),
+    )
     def _call_openai(self, prompt: str) -> str:
         if not self.secrets.openai_api_key:
             raise RuntimeError("OPENAI_API_KEY is not set")
@@ -121,5 +149,9 @@ class Matcher:
             },
             timeout=60,
         )
+        if resp.status_code == 429:
+            raise QuotaExceededError(resp.text[:200])
+        if 400 <= resp.status_code < 500:
+            raise _NonRetryableError(f"{resp.status_code}: {resp.text[:200]}")
         resp.raise_for_status()
         return resp.json()["choices"][0]["message"]["content"]

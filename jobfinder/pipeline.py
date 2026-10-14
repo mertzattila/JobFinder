@@ -7,18 +7,29 @@ import time
 
 from jobfinder.config import Secrets, Settings, TargetConfig
 from jobfinder.fetcher import Fetcher
-from jobfinder.matcher import Matcher
+from jobfinder.matcher import Matcher, QuotaExceededError
 from jobfinder.models import JobPosting, ScoredJob
 from jobfinder.notifier import Notifier
 from jobfinder.profile import load_profile
-from jobfinder.scrapers import BaseScraper, GenericScraper
+from jobfinder.scrapers import (
+    BaseScraper,
+    GenericScraper,
+    GreenhouseScraper,
+    PhenomScraper,
+)
 from jobfinder.state import SeenStore
 
 log = logging.getLogger(__name__)
 
 
 def build_scraper(target: TargetConfig, fetcher: Fetcher) -> BaseScraper:
-    """Factory for scrapers. Add bespoke scrapers here keyed on target.name."""
+    """Factory for scrapers. Picks the scraper by target.scraper: "generic"
+    (default CSS scraper), "phenom" (Phenom People JSON API, e.g. Infineon),
+    or "greenhouse" (Greenhouse boards JSON API, e.g. Formlabs)."""
+    if target.scraper == "phenom":
+        return PhenomScraper(target, fetcher)
+    if target.scraper == "greenhouse":
+        return GreenhouseScraper(target, fetcher)
     return GenericScraper(target, fetcher)
 
 
@@ -51,15 +62,33 @@ class Pipeline:
         log.info("Collected %d new keyword-matching jobs", len(new_jobs))
 
         alerted: list[ScoredJob] = []
-        for job in new_jobs:
+        for i, job in enumerate(new_jobs):
             # Mark seen up front so a failed LLM/notify call doesn't cause an
             # endless retry loop across daily runs.
             self.store.mark_seen(job.fingerprint)
             try:
                 match = self.matcher.evaluate(job)
+            except QuotaExceededError:
+                # Quota won't recover mid-run — stop immediately with a clear
+                # message instead of hammering the API for every remaining job.
+                # Jobs already marked seen will be skipped next run; unprocessed
+                # ones below stay unseen and get picked up when quota resets.
+                self.store.discard(job.fingerprint)
+                log.error(
+                    "LLM quota/rate limit hit (HTTP 429) after %d job(s). Stopping "
+                    "this run; the remaining %d job(s) will be retried next run. "
+                    "Free-tier Gemini has low daily/per-minute limits — wait for the "
+                    "quota to reset or lower the number of enabled targets.",
+                    i,
+                    len(new_jobs) - i,
+                )
+                break
             except Exception:  # noqa: BLE001 - one bad job shouldn't kill the run
                 log.exception("LLM evaluation failed for %s", job.url)
                 continue
+
+            # Be gentle on free-tier rate limits: small pause between LLM calls.
+            time.sleep(self.settings.llm_request_delay_seconds)
 
             log.info("Scored %s/10: %s @ %s", match.score, job.title, job.company)
             if match.score >= self.settings.score_threshold:

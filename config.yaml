@@ -25,21 +25,31 @@ keywords:
   - Python
   - microcontroller
   - mikrokontroller
+  - firmware
   - gyakornok
   - intern
+  - trainee          # common title for entry-level roles (e.g. "System Test Trainee")
+  - junior
   - student
   - hallgató
+  - diák
 
 score_threshold: 7          # notify only when LLM match score >= this (1-10)
 
 # --- Politeness / networking -------------------------------------------------
-request_timeout: 20
+# Enterprise ATS portals (Bosch, SuccessFactors, Avature) are slow to render.
+# 20s was too tight and caused Playwright navigation timeouts; 45s is safer.
+request_timeout: 45
 request_delay_seconds: 1.5
 
 # --- LLM ---------------------------------------------------------------------
 llm:
   provider: gemini          # "gemini" or "openai"
-  model: gemini-1.5-flash   # openai example: gpt-4o-mini
+  # gemini-1.5-flash and 2.0-flash are both retired and 404 on v1beta.
+  # "gemini-flash-latest" is an alias that always points to the current Flash
+  # model, so it won't go stale as Google rotates versions. (A pinned current
+  # alternative is gemini-2.5-flash.) openai example: gpt-4o-mini
+  model: gemini-flash-latest
   max_description_chars: 6000
 
 # --- Notifications -----------------------------------------------------------
@@ -51,18 +61,24 @@ notifier:
 targets:
   - name: bosch-hu
     company: Bosch
-    url: https://www.bosch.hu/karrier/allasok/
+    # The old www.bosch.hu/karrier/allasok/ URL is a 404 that just links out to
+    # the real jobs portal below. Verified 2026-10-13: 8 Hungary job cards.
+    url: https://jobs.bosch.com/hu/?country=hu
     enabled: true
     render: true
-    job_card: "a.job-listing-item, li.job-list__item a"
-    title: ".job-listing-item__title, .job-list__title"
-    link: null
-    location: ".job-listing-item__location, .job-list__location"
+    job_card: "a.A-JobPanel__header"
+    title: "h2.A-JobPanel__title"
+    link: null                 # the job_card IS the <a>
+    location: null             # location sits outside the card anchor; not scraped
 
   - name: continental
     company: Continental
+    # Checked 2026-10-13: continental.com/career just links out to a hash-routed
+    # SPA at jobs.continental.com/en/#/ (SmartRecruiters-style). Results load
+    # entirely via JS behind a '#/' fragment, so there's no URL to filter and the
+    # generic scraper can't reach the listings. Disabled until a bespoke scraper.
     url: https://www.continental.com/en/career/job-search/
-    enabled: true
+    enabled: false
     render: true
     job_card: "div.job-item, a[data-job-id]"
     title: ".job-item__title, h3"
@@ -71,8 +87,11 @@ targets:
 
   - name: ericsson
     company: Ericsson
+    # Checked 2026-10-13: the public job search redirects to a Microsoft SAML
+    # login (login.microsoftonline.com) — the listing isn't reachable without
+    # authentication, so it can't be scraped. Disabled.
     url: https://jobs.ericsson.com/search/?q=&locationsearch=Budapest
-    enabled: true
+    enabled: false
     render: true
     job_card: "tr.data-row, a.jobTitle-link"
     title: "a.jobTitle-link, .jobTitle"
@@ -81,18 +100,71 @@ targets:
 
   - name: knorr-bremse
     company: Knorr-Bremse
-    url: https://www.knorr-bremse.com/en/career/jobs/
+    # SuccessFactors portal, filtered to Budapest. Verified 2026-10-13: 19 rows.
+    url: "https://careers.knorr-bremse.com/search/?q=&locationsearch=Budapest"
     enabled: true
     render: true
-    job_card: "li.job, a.job-link"
-    title: ".job-title, h3"
-    link: "a"
-    location: ".job-location"
+    job_card: "tr.data-row"
+    title: "a.jobTitle-link"
+    link: "a.jobTitle-link"
+    location: ".jobLocation"
+
+  - name: siemens
+    company: Siemens
+    # Siemens uses an Avature portal. The job rows render fine (job_card below
+    # matches ~6 cards per page), BUT its location filter only works through the
+    # on-page facet form, NOT via a URL parameter — so this URL returns WORLDWIDE
+    # jobs, not just Budapest. Left disabled to avoid flooding you with noise.
+    # To enable usefully: either rely on the keyword pre-filter + LLM to discard
+    # non-Hungary roles (cheap but imperfect), or add a Siemens-specific scraper
+    # that drives the facet form. Verified markup 2026-10-13.
+    url: "https://jobs.siemens.com/en_US/externaljobs/SearchJobs/"
+    enabled: false
+    render: true
+    job_card: "article"
+    title: "a[href*='JobDetail']"
+    link: "a[href*='JobDetail']"
+    location: ".list-item-location"
+
+  - name: infineon
+    company: Infineon
+    # Semiconductor (automotive power + sensing), strong fit for the profile.
+    # Uses the Phenom People ATS, which exposes a clean public JSON API — scraped
+    # via the dedicated "phenom" scraper, no browser needed. Verified 2026-10-14:
+    # 30 Hungary positions (Budapest + Cegléd), incl. engineer/trainee roles.
+    scraper: phenom
+    url: https://jobs.infineon.com/careers
+    api_url: https://jobs.infineon.com/api/pcsx/search
+    location_filter: Hungary
+    enabled: true
+    render: false
+    job_card: ""        # unused by the phenom scraper
+
+  - name: formlabs
+    company: Formlabs
+    # 3D-printing company with a Budapest embedded/hardware R&D team — a smaller,
+    # hands-on employer (good for a student). Uses the Greenhouse ATS, which has
+    # a clean public JSON API — scraped via the "greenhouse" scraper, no browser.
+    # Verified 2026-10-14: 25 Budapest roles incl. C++/embedded/systems engineers.
+    scraper: greenhouse
+    url: https://careers.formlabs.com/
+    api_url: https://boards-api.greenhouse.io/v1/boards/formlabs/jobs
+    location_filter: Hungary
+    enabled: true
+    render: false
+    job_card: ""        # unused by the greenhouse scraper
 
   - name: nxp
     company: NXP
+    # Checked 2026-10-13 via NXP's Workday API: Hungary is NOT among the 26
+    # countries NXP currently hires in (the Budapest office is small). This target
+    # would always return 0 jobs, so it stays disabled. Re-check later — if NXP
+    # opens Budapest roles, Workday exposes a clean JSON API at:
+    #   POST https://nxp.wd3.myworkdayjobs.com/wday/cxs/nxp/careers/jobs
+    #   body: {"appliedFacets":{"Location_Country":["<hungary-facet-id>"]},"limit":20,"offset":0}
+    # which would be far more reliable than CSS selectors (needs a small custom scraper).
     url: https://nxp.wd3.myworkdayjobs.com/careers
-    enabled: false            # Workday needs tuned selectors; enable after verifying
+    enabled: false
     render: true
     job_card: "li.css-1q2dra3, a[data-automation-id='jobTitle']"
     title: "a[data-automation-id='jobTitle']"
@@ -111,8 +183,14 @@ targets:
 
   - name: thyssenkrupp
     company: thyssenkrupp
-    url: https://jobs.thyssenkrupp.com/en/search/?q=&location=Budapest
-    enabled: true
+    # thyssenkrupp (automotive: Components Technology Hungary, Budapest) DOES have
+    # many Budapest roles, but its careers site is a Next.js SPA that renders the
+    # result list only after an in-page search action — a plain render returns an
+    # empty shell (0 job links even after 18s), so generic CSS scraping can't reach
+    # the results. Checked 2026-10-13. Disabled until a bespoke scraper drives the
+    # search. Jobs are visible/scrapable per-posting at jobs.thyssenkrupp.com/hu/job/...
+    url: "https://jobs.thyssenkrupp.com/hu/search?q=&locationsearch=Budapest"
+    enabled: false
     render: true
     job_card: "a.jobTitle-link, tr.data-row"
     title: "a.jobTitle-link, .jobTitle"
@@ -122,9 +200,12 @@ targets:
   # --- Local engineering student job boards ---
   - name: schonherz
     company: Schönherz Iskolaszövetkezet
+    # Checked 2026-10-13: schonherz.hu/allasok/ renders no job listings (static
+    # OR rendered) and makes no jobs API call — the page appears empty/deprecated.
+    # Disabled. Worth re-checking the current Schönherz jobs URL manually.
     url: https://schonherz.hu/allasok/
-    enabled: true
-    render: false
+    enabled: false
+    render: true
     job_card: "article.job, .job-list-item, a.job-card"
     title: ".job-title, h2, h3"
     link: "a"
@@ -132,8 +213,13 @@ targets:
 
   - name: dreamjobs
     company: Dreamjo.bs
+    # Checked 2026-10-13: dreamjo.bs is a JS SPA but has a public JSON API at
+    # https://api.dreamjobs.hu/api/v2/jobs — the CSS selectors below do NOT work
+    # against the rendered DOM. The API returns localized {en,hu,ro} fields and
+    # tag-based (not simple keyword) search, so it needs a small custom scraper
+    # rather than the generic CSS one. Disabled until that scraper exists.
     url: https://dreamjo.bs/hu/jobs?q=embedded
-    enabled: true
+    enabled: false
     render: true
     job_card: "a.job-card, article.job"
     title: ".job-title, h2, h3"

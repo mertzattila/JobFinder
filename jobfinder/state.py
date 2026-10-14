@@ -32,6 +32,11 @@ class SeenStore:
     def mark_seen(self, fingerprint: str) -> None:
         self._seen.setdefault(fingerprint, datetime.now(timezone.utc).isoformat())
 
+    def discard(self, fingerprint: str) -> None:
+        """Un-mark a fingerprint (e.g. when a quota error prevented scoring, so
+        the job should be retried next run instead of being treated as done)."""
+        self._seen.pop(fingerprint, None)
+
     def save(self) -> None:
         self.path.write_text(
             json.dumps(self._seen, indent=2, sort_keys=True, ensure_ascii=False),
